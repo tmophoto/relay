@@ -773,6 +773,22 @@ html.light .custom-slider {
     </div>
 
     <div class="panel-section">
+      <div class="panel-label">LM Studio Host</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input id="host-input" type="text" value="localhost" placeholder="192.168.1.x"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:7px 10px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;"
+          oninput="saveHost()">
+        <span style="font-size:12px;color:var(--text3);">:</span>
+        <input id="port-input" type="text" value="1234" placeholder="1234"
+          style="width:58px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:7px 10px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;"
+          oninput="saveHost()">
+      </div>
+      <div id="host-status" style="font-size:10.5px;color:var(--text3);margin-top:7px;">
+        Connecting to <span id="host-display" style="color:var(--accent);font-weight:500;">localhost:1234</span>
+      </div>
+    </div>
+
+    <div class="panel-section">
       <div class="panel-label">Model</div>
       <div class="model-dropdown">
         <div class="model-card" id="model-card" onclick="toggleModelDropdown()">
@@ -1020,7 +1036,9 @@ async function sendMessage(text) {
   addThinkingBubble();
 
   try {
-    const res = await fetch('http://localhost:1234/v1/chat/completions', {
+    const host = document.getElementById('host-input').value.trim() || 'localhost';
+    const port = document.getElementById('port-input').value.trim() || '1234';
+    const res = await fetch(`http://${host}:${port}/v1/chat/completions`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -1202,6 +1220,24 @@ function selectModel(el, name, meta) {
   document.getElementById('model-options').classList.remove('open');
   updatePromptPreview();
 }
+
+function saveHost() {
+  const host = document.getElementById('host-input').value.trim() || 'localhost';
+  const port = document.getElementById('port-input').value.trim() || '1234';
+  document.getElementById('host-display').textContent = `${host}:${port}`;
+  localStorage.setItem('relay-host', host);
+  localStorage.setItem('relay-port', port);
+}
+
+(function restoreHost() {
+  const host = localStorage.getItem('relay-host');
+  const port = localStorage.getItem('relay-port');
+  if (host) document.getElementById('host-input').value = host;
+  if (port) document.getElementById('port-input').value = port;
+  const h = host || 'localhost';
+  const p = port || '1234';
+  document.getElementById('host-display').textContent = `${h}:${p}`;
+})();
 
 function toggleTheme() {
   const isLight = document.documentElement.classList.toggle('light');
