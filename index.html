@@ -752,7 +752,7 @@ html.light .custom-slider {
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </div>
         <p class="welcome-title">What can I help with?</p>
-        <p class="welcome-sub">Running locally · <span id="active-prompt-label">research</span> mode</p>
+        <p class="welcome-sub">Running locally · <span id="active-prompt-label">general chat</span> mode</p>
         <div class="suggestion-chips">
           <div class="chip" onclick="sendChip('Analyze a dataset for me')">Analyze a dataset</div>
           <div class="chip" onclick="sendChip('Write some Python code')">Write some code</div>
@@ -856,7 +856,7 @@ html.light .custom-slider {
           </div>
           <span class="prompt-label">Coding</span>
         </div>
-        <div class="prompt-item" onclick="selectPrompt(this,'general chat')">
+        <div class="prompt-item active" onclick="selectPrompt(this,'general chat')">
           <div class="prompt-icon-wrap">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
@@ -868,7 +868,7 @@ html.light .custom-slider {
           </div>
           <span class="prompt-label">Creative writing</span>
         </div>
-        <div class="prompt-item active" onclick="selectPrompt(this,'research')">
+        <div class="prompt-item" onclick="selectPrompt(this,'research')">
           <div class="prompt-icon-wrap">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </div>
@@ -903,7 +903,7 @@ const state = {
   conversations: [],
   activeId: null,
   activeModel: 'Qwen 35B',
-  activeMode: 'research',
+  activeMode: 'general chat',
   temp: 0.60,
   tokens: 1024,
   thinking: false
