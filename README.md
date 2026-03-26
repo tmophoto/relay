@@ -1,4 +1,4 @@
-# TurboQuant Desktop
+# Relay
 
 A minimal, single-file local chat UI for [LM Studio](https://lmstudio.ai). No build step, no dependencies — just open `index.html` in a browser.
 
