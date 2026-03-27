@@ -695,7 +695,17 @@ html.light .custom-slider {
       </div>
       <div style="margin-bottom:10px;">
         <div style="font-size:10px;font-weight:600;letter-spacing:0.09em;color:var(--text3);text-transform:uppercase;margin-bottom:7px;">LM Studio Host</div>
-        <div style="display:flex;gap:5px;align-items:center;">
+
+        <!-- Connection type tabs -->
+        <div style="display:flex;gap:3px;background:var(--bg);border-radius:var(--radius-sm);padding:3px;margin-bottom:8px;">
+          <button id="conn-tab-direct" onclick="setConnType('direct')"
+            style="flex:1;background:var(--bg4);border:none;border-radius:6px;padding:5px 0;font-family:var(--font);font-size:11px;font-weight:500;color:var(--text1);cursor:pointer;">Direct</button>
+          <button id="conn-tab-tailscale" onclick="setConnType('tailscale')"
+            style="flex:1;background:transparent;border:none;border-radius:6px;padding:5px 0;font-family:var(--font);font-size:11px;font-weight:500;color:var(--text3);cursor:pointer;">Tailscale</button>
+        </div>
+
+        <!-- Direct row -->
+        <div id="conn-direct" style="display:flex;gap:5px;align-items:center;">
           <input id="host-input" type="text" value="localhost" placeholder="192.168.1.x"
             style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;min-width:0;"
             oninput="saveHost()">
@@ -704,6 +714,21 @@ html.light .custom-slider {
             style="width:52px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;"
             oninput="saveHost()">
         </div>
+
+        <!-- Tailscale row -->
+        <div id="conn-tailscale" style="display:none;flex-direction:column;gap:5px;">
+          <div style="display:flex;gap:5px;align-items:center;">
+            <input id="tailscale-host" type="text" placeholder="100.x.x.x or hostname.ts.net"
+              style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;min-width:0;"
+              oninput="saveHost()">
+            <span style="font-size:12px;color:var(--text3);">:</span>
+            <input id="tailscale-port" type="text" value="1234" placeholder="1234"
+              style="width:52px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;"
+              oninput="saveHost()">
+          </div>
+          <div style="font-size:10px;color:var(--text3);line-height:1.5;">Use your Tailscale IP (100.x.x.x) or MagicDNS name. LM Studio must be running on the remote machine.</div>
+        </div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
           <span id="host-status" style="font-size:10.5px;color:var(--text3);">Not tested</span>
           <button onclick="testConnection()" style="background:var(--bg5);border:1px solid var(--border2);border-radius:6px;padding:3px 9px;font-family:var(--font);font-size:11px;color:var(--text2);cursor:pointer;">Test</button>
@@ -1034,8 +1059,7 @@ async function sendMessage(text) {
   addThinkingBubble();
 
   try {
-    const host = document.getElementById('host-input').value.trim() || 'localhost';
-    const port = document.getElementById('port-input').value.trim() || '1234';
+    const {host, port} = getActiveEndpoint();
     const res = await fetch(`http://${host}:${port}/v1/chat/completions`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -1219,18 +1243,46 @@ function selectModel(el, name, meta) {
   updatePromptPreview();
 }
 
+function getActiveEndpoint() {
+  const type = localStorage.getItem('relay-conn-type') || 'direct';
+  if (type === 'tailscale') {
+    const host = document.getElementById('tailscale-host').value.trim();
+    const port = document.getElementById('tailscale-port').value.trim() || '1234';
+    return {host: host || 'localhost', port};
+  }
+  const host = document.getElementById('host-input').value.trim() || 'localhost';
+  const port = document.getElementById('port-input').value.trim() || '1234';
+  return {host, port};
+}
+
+function setConnType(type) {
+  localStorage.setItem('relay-conn-type', type);
+  const isDirect = type === 'direct';
+  document.getElementById('conn-direct').style.display = isDirect ? 'flex' : 'none';
+  document.getElementById('conn-tailscale').style.display = isDirect ? 'none' : 'flex';
+  document.getElementById('conn-tab-direct').style.background = isDirect ? 'var(--bg4)' : 'transparent';
+  document.getElementById('conn-tab-direct').style.color = isDirect ? 'var(--text1)' : 'var(--text3)';
+  document.getElementById('conn-tab-tailscale').style.background = isDirect ? 'transparent' : 'var(--bg4)';
+  document.getElementById('conn-tab-tailscale').style.color = isDirect ? 'var(--text3)' : 'var(--text1)';
+  document.getElementById('host-status').textContent = 'Not tested';
+  document.getElementById('host-status').style.color = 'var(--text3)';
+}
+
 function saveHost() {
   const host = document.getElementById('host-input').value.trim() || 'localhost';
   const port = document.getElementById('port-input').value.trim() || '1234';
   localStorage.setItem('relay-host', host);
   localStorage.setItem('relay-port', port);
+  const tsHost = document.getElementById('tailscale-host').value.trim();
+  const tsPort = document.getElementById('tailscale-port').value.trim() || '1234';
+  localStorage.setItem('relay-ts-host', tsHost);
+  localStorage.setItem('relay-ts-port', tsPort);
   document.getElementById('host-status').textContent = 'Not tested';
   document.getElementById('host-status').style.color = 'var(--text3)';
 }
 
 async function testConnection() {
-  const host = document.getElementById('host-input').value.trim() || 'localhost';
-  const port = document.getElementById('port-input').value.trim() || '1234';
+  const {host, port} = getActiveEndpoint();
   const status = document.getElementById('host-status');
   status.textContent = 'Testing…';
   status.style.color = 'var(--text3)';
@@ -1254,6 +1306,12 @@ async function testConnection() {
   const port = localStorage.getItem('relay-port');
   if (host) document.getElementById('host-input').value = host;
   if (port) document.getElementById('port-input').value = port;
+  const tsHost = localStorage.getItem('relay-ts-host');
+  const tsPort = localStorage.getItem('relay-ts-port');
+  if (tsHost) document.getElementById('tailscale-host').value = tsHost;
+  if (tsPort) document.getElementById('tailscale-port').value = tsPort;
+  const connType = localStorage.getItem('relay-conn-type') || 'direct';
+  setConnType(connType);
 })();
 
 function toggleTheme() {
