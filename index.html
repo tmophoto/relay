@@ -738,6 +738,14 @@ html.light .custom-slider {
         </div>
         New conversation
       </button>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+        <div style="font-size:10px;font-weight:600;letter-spacing:0.09em;color:var(--text3);text-transform:uppercase;margin-bottom:5px;">Save folder</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-bottom:6px;word-break:break-all;line-height:1.4;" id="folder-status">No folder set</div>
+        <div style="display:flex;gap:5px;">
+          <button onclick="pickFolder()" style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:5px 0;font-family:var(--font);font-size:11px;color:var(--text2);cursor:pointer;">Set folder</button>
+          <button onclick="disconnectFolder()" id="folder-disconnect" style="display:none;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:11px;color:var(--text3);cursor:pointer;">✕</button>
+        </div>
+      </div>
     </div>
 
     <div class="section-title">Recent</div>
@@ -1109,6 +1117,7 @@ async function sendMessage(text) {
     if (sb) sb.removeAttribute('id');
 
     conv.messages.push({role: 'assistant', content: fullText});
+    await persistConversation(conv);
 
   } catch (err) {
     removeThinkingBubble();
@@ -1144,9 +1153,14 @@ function newChat(focus = true) {
   if (focus) setTimeout(() => document.getElementById('msg-input').focus(), 50);
 }
 
-function clearChat() {
+async function clearChat() {
   const conv = state.conversations.find(c => c.id === state.activeId);
-  if (conv) { conv.messages = []; conv.title = ''; }
+  if (conv) {
+    await deleteConvFile(conv.id);
+    conv.messages = [];
+    conv.title = '';
+  }
+  saveToLocalStorage();
   document.getElementById('chat-body').innerHTML = buildWelcome();
   updateSidebarList();
 }
@@ -1328,6 +1342,157 @@ document.addEventListener('click', function(e) {
     document.getElementById('model-options').classList.remove('open');
   }
 });
+
+// --- Storage ---
+
+let folderHandle = null;
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('relay-storage', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = reject;
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(value, key);
+    tx.oncomplete = resolve;
+    tx.onerror = reject;
+  });
+}
+
+async function idbGet(key) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readonly');
+    const req = tx.objectStore('kv').get(key);
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = reject;
+  });
+}
+
+function updateFolderStatus() {
+  const el = document.getElementById('folder-status');
+  const btn = document.getElementById('folder-disconnect');
+  if (!el) return;
+  if (folderHandle) {
+    el.textContent = folderHandle.name;
+    el.style.color = 'var(--accent)';
+    if (btn) btn.style.display = 'block';
+  } else {
+    el.textContent = 'No folder set';
+    el.style.color = 'var(--text3)';
+    if (btn) btn.style.display = 'none';
+  }
+}
+
+async function pickFolder() {
+  if (!window.showDirectoryPicker) {
+    alert('Your browser does not support folder access.\nChats are saved in browser storage only.\n\nUse Chrome or Edge for folder support.');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' });
+    folderHandle = handle;
+    await idbSet('relay-folder-handle', handle);
+    updateFolderStatus();
+    for (const conv of state.conversations) {
+      if (conv.messages.length > 0) await saveConvToFile(conv);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') console.error('Folder pick error:', e);
+  }
+}
+
+async function disconnectFolder() {
+  folderHandle = null;
+  await idbSet('relay-folder-handle', null);
+  updateFolderStatus();
+}
+
+async function tryRestoreFolderHandle() {
+  try {
+    const handle = await idbGet('relay-folder-handle');
+    if (!handle) return;
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      folderHandle = handle;
+      updateFolderStatus();
+    }
+  } catch (e) {}
+}
+
+async function saveConvToFile(conv) {
+  if (!folderHandle || conv.messages.length === 0) return;
+  try {
+    const fileHandle = await folderHandle.getFileHandle(`${conv.id}.json`, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(conv, null, 2));
+    await writable.close();
+  } catch (e) {
+    console.error('Failed to write conversation file:', e);
+  }
+}
+
+async function deleteConvFile(id) {
+  if (!folderHandle) return;
+  try { await folderHandle.removeEntry(`${id}.json`); } catch (e) {}
+}
+
+async function loadConvsFromFolder() {
+  if (!folderHandle) return null;
+  try {
+    const convs = [];
+    for await (const [name, handle] of folderHandle.entries()) {
+      if (!name.endsWith('.json')) continue;
+      try {
+        const file = await handle.getFile();
+        const conv = JSON.parse(await file.text());
+        if (conv.id && Array.isArray(conv.messages)) convs.push(conv);
+      } catch (e) {}
+    }
+    convs.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+    return convs.length > 0 ? convs : null;
+  } catch (e) { return null; }
+}
+
+function saveToLocalStorage() {
+  try {
+    const toSave = state.conversations.filter(c => c.messages.length > 0);
+    localStorage.setItem('relay-conversations', JSON.stringify(toSave));
+  } catch (e) {}
+}
+
+function loadFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('relay-conversations');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+async function persistConversation(conv) {
+  saveToLocalStorage();
+  await saveConvToFile(conv);
+}
+
+async function initStorage() {
+  await tryRestoreFolderHandle();
+  let convs = null;
+  if (folderHandle) convs = await loadConvsFromFolder();
+  if (!convs) convs = loadFromLocalStorage();
+  if (convs && convs.length > 0) {
+    state.conversations = convs;
+    updateSidebarList();
+  }
+  updateFolderStatus();
+}
+
+initStorage();
 </script>
 </body>
 </html>
