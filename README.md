@@ -66,7 +66,7 @@ To stop syncing to a folder, click the **✕** button next to the folder name in
 ## Connecting Remotely
 
 ### LAN (Direct)
-Enter the IP of the machine running LM Studio (e.g. `192.168.1.206`) and port `1234`. Both machines must be on the same network.
+Enter the IP of the machine running LM Studio (e.g. `192.168.1.x`) and port `1234`. Both machines must be on the same network.
 
 ### Tailscale
 Install [Tailscale](https://tailscale.com) on both machines. Enter the remote machine's Tailscale IP (`100.x.x.x`) or MagicDNS hostname (e.g. `your-desktop.tail12345.ts.net`). Works from any network.

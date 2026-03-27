@@ -21,7 +21,7 @@ A local-first LM Studio chat client. All inference runs on a self-hosted machine
 Two connection modes, selectable by the user:
 
 ### Direct (LAN)
-- User enters a host IP (e.g. `192.168.1.206`) and port (default `1234`).
+- User enters a host IP (e.g. `192.168.1.x`) and port (default `1234`).
 - Used when phone and server are on the same Wi-Fi network.
 
 ### Tailscale (Remote)
