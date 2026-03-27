@@ -1179,7 +1179,7 @@ function updateSidebarList() {
   }
   list.innerHTML = named.map(c => `
     <div class="chat-item ${c.id === state.activeId ? 'active' : ''}" onclick="loadChat('${c.id}')">
-      <div class="chat-item-title">${c.title}</div>
+      <div class="chat-item-title">${escapeHtml(c.title)}</div>
       <div class="chat-item-meta">${new Date(parseInt(c.id)).toLocaleDateString([],{month:'short',day:'numeric'})}</div>
     </div>`).join('');
 }
