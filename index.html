@@ -1071,7 +1071,7 @@ async function sendMessage(text) {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        model: '/mnt/d/models/vllm_models/Qwen3.5-27B-FP8',
+        model: 'qwen3.5-27b',
         messages: [
           {role: 'system', content: buildSystemPrompt()},
           ...conv.messages
