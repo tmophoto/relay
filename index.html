@@ -472,63 +472,6 @@ html, body {
 
 .panel-label { font-size: 10px; font-weight: 600; letter-spacing: 0.09em; color: var(--text3); text-transform: uppercase; margin-bottom: 10px; }
 
-.model-dropdown { position: relative; }
-
-.model-card {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  padding: 11px 13px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-  user-select: none;
-}
-
-.model-card:hover { background: var(--bg4); }
-.model-card.open { border-color: rgba(52,211,153,0.35); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-
-.model-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
-.model-info { flex: 1; }
-.model-name { font-size: 12.5px; font-weight: 500; color: var(--text1); }
-.model-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
-
-.model-chevron { color: var(--text3); transition: transform 0.2s; flex-shrink: 0; }
-.model-card.open .model-chevron { transform: rotate(180deg); }
-
-.model-options {
-  display: none;
-  flex-direction: column;
-  background: var(--bg4);
-  border: 1px solid rgba(52,211,153,0.35);
-  border-top: none;
-  border-bottom-left-radius: var(--radius);
-  border-bottom-right-radius: var(--radius);
-  overflow: hidden;
-}
-
-.model-options.open { display: flex; }
-
-.model-option {
-  padding: 10px 13px;
-  cursor: pointer;
-  transition: background 0.1s;
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.model-option:first-child { border-top: none; }
-.model-option:hover { background: var(--bg5); }
-.model-option.selected { background: var(--accent-dim); }
-
-.model-option-name { font-size: 12px; font-weight: 500; color: var(--text1); }
-.model-option-meta { font-size: 10.5px; color: var(--text3); margin-top: 1px; }
-.model-option-check { margin-left: auto; color: var(--accent); opacity: 0; flex-shrink: 0; }
-.model-option.selected .model-option-check { opacity: 1; }
 
 .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .slider-name { font-size: 12px; color: var(--text2); }
@@ -820,37 +763,9 @@ html.light .custom-slider {
 
     <div class="panel-section">
       <div class="panel-label">Model</div>
-      <div class="model-dropdown">
-        <div class="model-card" id="model-card" onclick="toggleModelDropdown()">
-          <div class="model-dot"></div>
-          <div class="model-info">
-            <div class="model-name" id="model-name">Qwen 27B</div>
-            <div class="model-meta" id="model-meta">general · q4_k_m</div>
-          </div>
-          <svg class="model-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="model-options" id="model-options">
-          <div class="model-option" onclick="selectModel(this,'Qwen 35B','Opus · reasoning + general')">
-            <div><div class="model-option-name">Qwen 35B</div><div class="model-option-meta">Opus · reasoning + general</div></div>
-            <svg class="model-option-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div class="model-option selected" onclick="selectModel(this,'Qwen 27B','general · q4_k_m')">
-            <div><div class="model-option-name">Qwen 27B</div><div class="model-option-meta">general · q4_k_m</div></div>
-            <svg class="model-option-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div class="model-option" onclick="selectModel(this,'Nemotron 30B','reasoning distilled · q4_k_m')">
-            <div><div class="model-option-name">Nemotron 30B</div><div class="model-option-meta">reasoning distilled · q4_k_m</div></div>
-            <svg class="model-option-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div class="model-option" onclick="selectModel(this,'Qwen 3 Coder 30B','code specialist · q4_k_m')">
-            <div><div class="model-option-name">Qwen 3 Coder 30B</div><div class="model-option-meta">code specialist · q4_k_m</div></div>
-            <svg class="model-option-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div class="model-option" onclick="selectModel(this,'Llama 3.3 70B','general · q3_k_m')">
-            <div><div class="model-option-name">Llama 3.3 70B</div><div class="model-option-meta">general · q3_k_m</div></div>
-            <svg class="model-option-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-        </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;background:var(--accent);border-radius:50%;flex-shrink:0;"></div>
+        <span style="font-size:12px;color:var(--text1);font-weight:500;" id="model-name-label">—</span>
       </div>
     </div>
 
@@ -917,13 +832,6 @@ html.light .custom-slider {
       </div>
     </div>
 
-    <div class="panel-section">
-      <div class="panel-label">Active system prompt</div>
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
-        <div style="font-size:10px;font-weight:600;letter-spacing:0.07em;color:var(--accent);text-transform:uppercase;margin-bottom:6px;" id="prompt-model-tag">Qwen 35B · Research</div>
-        <div style="font-size:11.5px;color:var(--text2);line-height:1.6;" id="prompt-preview">You are a highly capable reasoning model. Think step by step before answering. Avoid sycophancy. You are in research mode — provide thorough, well-structured responses with clear reasoning.</div>
-      </div>
-    </div>
   </div>
 
 </div>
@@ -932,19 +840,10 @@ html.light .custom-slider {
 const state = {
   conversations: [],
   activeId: null,
-  activeModel: 'Qwen 27B',
   activeMode: 'general chat',
   temp: 0.60,
   tokens: 1024,
   thinking: false
-};
-
-const modelBasePrompts = {
-  'Qwen 35B':         'You are a highly capable reasoning model running locally. Think step by step before answering. Be direct and avoid sycophantic openers. When uncertain, say so clearly.',
-  'Qwen 27B':         'You are a capable and efficient general-purpose model. Be clear and concise. Think through problems methodically. Avoid unnecessary verbosity.',
-  'Nemotron 30B':     'You are a reasoning-distilled model optimized for logical analysis. Show your reasoning process. Be concise and precise. Avoid unnecessary filler or flattery.',
-  'Qwen 3 Coder 30B': 'You are a code-specialized model. Default to producing working, well-commented code. Explain your implementation decisions. Prefer practical solutions over theoretical ones.',
-  'Llama 3.3 70B':    'You are a large general-purpose model. Be thorough and balanced. Draw on broad knowledge. Avoid being overly verbose — prioritize clarity over length.'
 };
 
 const modeAppends = {
@@ -955,15 +854,7 @@ const modeAppends = {
 };
 
 function buildSystemPrompt() {
-  const base = modelBasePrompts[state.activeModel] || modelBasePrompts['Qwen 35B'];
-  const mode = modeAppends[state.activeMode] || modeAppends['research'];
-  return base + '\n\n' + mode;
-}
-
-function updatePromptPreview() {
-  const combined = buildSystemPrompt();
-  document.getElementById('prompt-model-tag').textContent = state.activeModel + ' · ' + state.activeMode;
-  document.getElementById('prompt-preview').textContent = combined;
+  return modeAppends[state.activeMode] || modeAppends['general chat'];
 }
 
 function getTime() {
@@ -1254,32 +1145,6 @@ function selectPrompt(el, name) {
   state.activeMode = name;
   const lbl = document.getElementById('active-prompt-label');
   if (lbl) lbl.textContent = name;
-  updatePromptPreview();
-}
-
-function toggleModelDropdown() {
-  const card = document.getElementById('model-card');
-  const opts = document.getElementById('model-options');
-  const isOpen = opts.classList.contains('open');
-  if (isOpen) {
-    card.classList.remove('open');
-    opts.classList.remove('open');
-  } else {
-    card.classList.add('open');
-    opts.classList.add('open');
-  }
-}
-
-function selectModel(el, name, meta) {
-  document.querySelectorAll('.model-option').forEach(o => o.classList.remove('selected'));
-  el.classList.add('selected');
-  state.activeModel = name;
-  document.getElementById('model-name').textContent = name;
-  document.getElementById('model-meta').textContent = meta;
-  document.getElementById('topbar-model-label').textContent = name + ' · ' + meta.split('·')[1].trim();
-  document.getElementById('model-card').classList.remove('open');
-  document.getElementById('model-options').classList.remove('open');
-  updatePromptPreview();
 }
 
 function getActiveEndpoint() {
@@ -1320,6 +1185,19 @@ function saveHost() {
   document.getElementById('host-status').style.color = 'var(--text3)';
 }
 
+async function fetchModelName() {
+  const {host, port} = getActiveEndpoint();
+  try {
+    const res = await fetch(`http://${host}:${port}/v1/models`, {signal: AbortSignal.timeout(4000)});
+    if (res.ok) {
+      const data = await res.json();
+      const id = data.data?.[0]?.id || '—';
+      document.getElementById('model-name-label').textContent = id;
+      document.getElementById('topbar-model-label').textContent = id;
+    }
+  } catch {}
+}
+
 async function testConnection() {
   const {host, port} = getActiveEndpoint();
   const status = document.getElementById('host-status');
@@ -1330,6 +1208,10 @@ async function testConnection() {
     if (res.ok) {
       status.textContent = `Connected · ${host}:${port}`;
       status.style.color = 'var(--accent)';
+      const data = await res.json();
+      const id = data.data?.[0]?.id || '—';
+      document.getElementById('model-name-label').textContent = id;
+      document.getElementById('topbar-model-label').textContent = id;
     } else {
       status.textContent = `Error ${res.status}`;
       status.style.color = '#f87171';
@@ -1351,6 +1233,7 @@ async function testConnection() {
   if (tsPort) document.getElementById('tailscale-port').value = tsPort;
   const connType = localStorage.getItem('relay-conn-type') || 'direct';
   setConnType(connType);
+  fetchModelName();
 })();
 
 function toggleTheme() {
@@ -1362,13 +1245,6 @@ if (localStorage.getItem('relay-theme') === 'light') {
   document.documentElement.classList.add('light');
 }
 
-document.addEventListener('click', function(e) {
-  const dropdown = document.querySelector('.model-dropdown');
-  if (dropdown && !dropdown.contains(e.target)) {
-    document.getElementById('model-card').classList.remove('open');
-    document.getElementById('model-options').classList.remove('open');
-  }
-});
 
 // --- Storage ---
 
