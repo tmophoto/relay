@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Relay">
+<meta name="theme-color" content="#111113">
 <title>Relay</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -38,7 +42,7 @@ html, body {
 
 .app {
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 220px 1fr 272px;
 }
@@ -49,7 +53,7 @@ html, body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -614,6 +618,99 @@ html.light {
   --accent-dim2:rgba(5,150,105,0.06);
 }
 
+/* ── MOBILE ───────────────────────────────────────────── */
+.mobile-only { display: none !important; }
+
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 199;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.mobile-overlay.active { display: block; }
+
+.sheet-handle { display: none; }
+
+@media (max-width: 768px) {
+  -webkit-tap-highlight-color: transparent;
+
+  .app {
+    grid-template-columns: 1fr;
+    height: 100dvh;
+  }
+
+  /* Sidebar → left drawer */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(82vw, 300px);
+    height: 100dvh;
+    z-index: 200;
+    transform: translateX(-110%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  /* Panel → bottom sheet */
+  .panel {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: auto;
+    max-height: 82dvh;
+    z-index: 200;
+    border-left: none;
+    border-top: 1px solid var(--border2);
+    border-radius: 20px 20px 0 0;
+    transform: translateY(110%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .panel.open { transform: translateY(0); }
+
+  .sheet-handle {
+    display: block;
+    width: 36px; height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    margin: 12px auto 4px;
+    flex-shrink: 0;
+  }
+  .panel-header { padding-top: 4px; }
+
+  /* Chat fills the screen */
+  .chat { height: 100dvh; }
+
+  /* Topbar */
+  .chat-topbar {
+    padding: 0 12px;
+    padding-top: env(safe-area-inset-top);
+    height: calc(52px + env(safe-area-inset-top));
+    gap: 8px;
+  }
+  .topbar-model { display: none; }
+
+  /* Composer */
+  .composer {
+    padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  .composer-hints { display: none; }
+
+  /* Show mobile-only buttons */
+  .mobile-only { display: flex !important; }
+
+  /* Touch targets */
+  .topbar-btn { width: 38px; height: 38px; }
+  .composer-icon-btn { width: 38px; height: 38px; }
+
+  /* Prevent iOS input zoom (requires font-size >= 16px) */
+  textarea, input[type="text"] { font-size: 16px !important; }
+}
+
 html.light .upload-zone {
   border-color: rgba(0,0,0,0.12);
 }
@@ -625,6 +722,7 @@ html.light .custom-slider {
 </head>
 <body>
 <div class="app">
+<div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileOverlays()"></div>
 
   <!-- SIDEBAR -->
   <div class="sidebar">
@@ -707,12 +805,18 @@ html.light .custom-slider {
   <!-- CHAT -->
   <div class="chat">
     <div class="chat-topbar">
+      <div class="topbar-btn mobile-only" title="Menu" onclick="toggleSidebar()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </div>
       <div class="status-pill">
         <div class="status-dot"></div>
         <span class="status-text" id="status-text">Ready</span>
       </div>
       <span class="topbar-model" id="topbar-model-label">qwen3.5 · 27b · q4_k_m</span>
       <div class="topbar-actions">
+        <div class="topbar-btn mobile-only" title="Settings" onclick="togglePanel()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
         <div class="topbar-btn" title="Toggle light/dark" onclick="toggleTheme()" id="theme-btn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </div>
@@ -757,6 +861,7 @@ html.light .custom-slider {
 
   <!-- PANEL -->
   <div class="panel">
+    <div class="sheet-handle"></div>
     <div class="panel-header">
       <span class="panel-title">Configuration</span>
     </div>
@@ -1063,6 +1168,7 @@ function handleKey(e) {
 }
 
 function newChat(focus = true) {
+  closeMobileOverlays();
   const id = Date.now().toString();
   state.conversations.unshift({id, title: '', messages: []});
   state.activeId = id;
@@ -1084,6 +1190,7 @@ async function clearChat() {
 }
 
 function loadChat(id) {
+  closeMobileOverlays();
   state.activeId = id;
   const conv = state.conversations.find(c => c.id === id);
   if (!conv) return;
@@ -1235,6 +1342,30 @@ async function testConnection() {
   setConnType(connType);
   fetchModelName();
 })();
+
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('mobile-overlay');
+  const isOpen = sidebar.classList.contains('open');
+  document.querySelector('.panel').classList.remove('open');
+  sidebar.classList.toggle('open', !isOpen);
+  overlay.classList.toggle('active', !isOpen);
+}
+
+function togglePanel() {
+  const panel = document.querySelector('.panel');
+  const overlay = document.getElementById('mobile-overlay');
+  const isOpen = panel.classList.contains('open');
+  document.querySelector('.sidebar').classList.remove('open');
+  panel.classList.toggle('open', !isOpen);
+  overlay.classList.toggle('active', !isOpen);
+}
+
+function closeMobileOverlays() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.querySelector('.panel').classList.remove('open');
+  document.getElementById('mobile-overlay').classList.remove('active');
+}
 
 function toggleTheme() {
   const isLight = document.documentElement.classList.toggle('light');
