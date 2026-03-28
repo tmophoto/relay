@@ -376,6 +376,7 @@ html, body {
 
 .msg-time { font-size: 10px; color: var(--text3); margin-top: 5px; clear: both; }
 .msg.user .msg-time { text-align: right; }
+.msg-stats { font-size: 10px; color: var(--text3); margin-top: 3px; clear: both; font-variant-numeric: tabular-nums; }
 
 /* Composer */
 .composer {
@@ -708,7 +709,7 @@ html.light .custom-slider {
             style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;min-width:0;"
             oninput="saveHost()">
           <span style="font-size:12px;color:var(--text3);">:</span>
-          <input id="port-input" type="text" value="1234" placeholder="1234"
+          <input id="port-input" type="text" value="8000" placeholder="8000"
             style="width:52px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font);font-size:12px;color:var(--text1);outline:none;"
             oninput="saveHost()">
         </div>
@@ -1077,7 +1078,8 @@ async function sendMessage(text) {
         ],
         temperature: state.temp,
         max_tokens: state.tokens,
-        stream: true
+        stream: true,
+        stream_options: {include_usage: true}
       })
     });
 
@@ -1086,6 +1088,9 @@ async function sendMessage(text) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
+    let streamStart = null;
+    let tokensGenerated = 0;
+    let usageData = null;
 
     const msgEl = document.createElement('div');
     msgEl.className = 'msg assistant';
@@ -1093,6 +1098,7 @@ async function sendMessage(text) {
       <div class="msg-content">
         <div class="msg-bubble" id="stream-bubble"></div>
         <div class="msg-time">${getTime()}</div>
+        <div class="msg-stats" id="stream-stats"></div>
       </div>`;
     body.appendChild(msgEl);
 
@@ -1104,11 +1110,21 @@ async function sendMessage(text) {
         const data = line.slice(6);
         if (data === '[DONE]') continue;
         try {
-          const delta = JSON.parse(data).choices?.[0]?.delta?.content || '';
-          fullText += delta;
-          const bubble = document.getElementById('stream-bubble');
-          if (bubble) bubble.innerHTML = escapeHtml(fullText);
-          scrollToBottom();
+          const parsed = JSON.parse(data);
+          if (parsed.usage) usageData = parsed.usage;
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            if (!streamStart) streamStart = performance.now();
+            fullText += delta;
+            tokensGenerated++;
+            const bubble = document.getElementById('stream-bubble');
+            if (bubble) bubble.innerHTML = escapeHtml(fullText);
+            const elapsed = (performance.now() - streamStart) / 1000;
+            const tps = elapsed > 0 ? (tokensGenerated / elapsed).toFixed(1) : '…';
+            const statsEl = document.getElementById('stream-stats');
+            if (statsEl) statsEl.textContent = `${tokensGenerated} tok · ${tps} tok/s`;
+            scrollToBottom();
+          }
         } catch {}
       }
     }
@@ -1116,13 +1132,24 @@ async function sendMessage(text) {
     const sb = document.getElementById('stream-bubble');
     if (sb) sb.removeAttribute('id');
 
+    const elapsedSec = streamStart ? ((performance.now() - streamStart) / 1000) : 0;
+    const finalTps = elapsedSec > 0 ? (tokensGenerated / elapsedSec).toFixed(1) : '—';
+    const totalTok = usageData
+      ? `${usageData.prompt_tokens + usageData.completion_tokens} tok (${usageData.prompt_tokens} in · ${usageData.completion_tokens} out)`
+      : `${tokensGenerated} tok`;
+    const statsEl = document.getElementById('stream-stats');
+    if (statsEl) {
+      statsEl.removeAttribute('id');
+      statsEl.textContent = `${totalTok} · ${finalTps} tok/s · ${elapsedSec.toFixed(1)}s`;
+    }
+
     conv.messages.push({role: 'assistant', content: fullText});
     await persistConversation(conv);
 
   } catch (err) {
     removeThinkingBubble();
     const errText = err.message.includes('fetch')
-      ? 'Could not connect to LM Studio. Make sure it\'s running on port 1234 with server mode enabled.'
+      ? 'Could not connect to the server. Make sure vLLM is running on localhost:8000.'
       : 'Error: ' + err.message;
     body.insertAdjacentHTML('beforeend', renderMessage('assistant', errText));
     scrollToBottom();
@@ -1263,7 +1290,7 @@ function getActiveEndpoint() {
     return {host: host || 'localhost', port};
   }
   const host = document.getElementById('host-input').value.trim() || 'localhost';
-  const port = document.getElementById('port-input').value.trim() || '1234';
+  const port = document.getElementById('port-input').value.trim() || '8000';
   return {host, port};
 }
 
@@ -1282,7 +1309,7 @@ function setConnType(type) {
 
 function saveHost() {
   const host = document.getElementById('host-input').value.trim() || 'localhost';
-  const port = document.getElementById('port-input').value.trim() || '1234';
+  const port = document.getElementById('port-input').value.trim() || '8000';
   localStorage.setItem('relay-host', host);
   localStorage.setItem('relay-port', port);
   const tsHost = document.getElementById('tailscale-host').value.trim();
