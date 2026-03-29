@@ -888,6 +888,7 @@ html.light .custom-slider {
         <span class="status-text" id="status-text">Ready</span>
       </div>
       <span class="topbar-model" id="topbar-model-label">—</span>
+      <span id="session-tok" style="font-size:11px;color:var(--accent);font-weight:500;text-shadow:0 0 8px rgba(52,211,153,0.4);font-variant-numeric:tabular-nums;margin-left:4px;"></span>
       <div class="topbar-actions">
         <div class="topbar-btn mobile-only" title="Settings" onclick="togglePanel()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1026,8 +1027,14 @@ const state = {
   activeMode: 'general chat',
   temp: 0.60,
   tokens: 1024,
-  thinking: false
+  thinking: false,
+  sessionTokens: 0
 };
+
+function updateSessionCounter() {
+  const el = document.getElementById('session-tok');
+  if (el) el.textContent = state.sessionTokens.toLocaleString() + ' tok';
+}
 
 if (typeof marked !== 'undefined') {
   marked.setOptions({gfm: true, breaks: false});
@@ -1259,6 +1266,11 @@ async function sendMessage(text) {
       statsEl.removeAttribute('id');
       statsEl.textContent = `${totalTok} · ${finalTps} tok/s · ${elapsedSec.toFixed(1)}s`;
     }
+
+    state.sessionTokens += usageData
+      ? (usageData.prompt_tokens + usageData.completion_tokens)
+      : tokensGenerated;
+    updateSessionCounter();
 
     conv.messages.push({role: 'assistant', content: fullText});
     await persistConversation(conv);
