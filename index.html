@@ -1104,7 +1104,6 @@ const state = {
   activeMode: 'general chat',
   temp: 0.60,
   tokens: 1024,
-  thinking: false,
   sessionTokens: 0
 };
 
@@ -1144,7 +1143,9 @@ if (typeof marked !== 'undefined') {
   }
 }
 
-let activeController = null;
+const activeControllers = {}; // convId → AbortController
+
+function isGenerating(convId) { return !!activeControllers[convId]; }
 
 function setGenerating(on) {
   const send = document.querySelector('.send-btn');
@@ -1153,8 +1154,15 @@ function setGenerating(on) {
   if (stop) stop.classList.toggle('active', on);
 }
 
+function syncGeneratingUI() {
+  setGenerating(isGenerating(state.activeId));
+  setStatus(isGenerating(state.activeId) ? 'Thinking\u2026' : 'Ready', isGenerating(state.activeId));
+}
+
 function stopGeneration() {
-  if (activeController) { activeController.abort(); activeController = null; }
+  const ctrl = activeControllers[state.activeId];
+  if (ctrl) { ctrl.abort(); delete activeControllers[state.activeId]; }
+  syncGeneratingUI();
 }
 
 const modeAppends = {
@@ -1260,19 +1268,19 @@ function removeThinkingBubble() {
 }
 
 async function streamResponse(conv) {
+  const isActive = () => state.activeId === conv.id;
   const body = document.getElementById('chat-body');
-  state.thinking = true;
-  setGenerating(true);
-  setStatus('Thinking\u2026', true);
+
+  activeControllers[conv.id] = new AbortController();
+  if (isActive()) { setGenerating(true); setStatus('Thinking\u2026', true); }
   addThinkingBubble();
 
   try {
     const {host, port} = getActiveEndpoint();
-    activeController = new AbortController();
     const res = await fetch(`http://${host}:${port}/v1/chat/completions`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      signal: activeController.signal,
+      signal: activeControllers[conv.id].signal,
       body: JSON.stringify({
         model: 'qwen3.5-27b',
         messages: [
@@ -1364,14 +1372,12 @@ async function streamResponse(conv) {
     }
   }
 
-  activeController = null;
-  state.thinking = false;
-  setGenerating(false);
-  setStatus('Ready', false);
+  delete activeControllers[conv.id];
+  if (isActive()) syncGeneratingUI();
 }
 
 async function sendMessage(text) {
-  if (state.thinking) return;
+  if (isGenerating(state.activeId)) return;
   const input = document.getElementById('msg-input');
   const msg = (text || input.value).trim();
   if (!msg && !attachedFiles.length) return;
@@ -1412,7 +1418,7 @@ function sendChip(text) { sendMessage(text); }
 
 // ── Edit message ────────────────────────────────────────────
 function editMessage(idx) {
-  if (state.thinking) return;
+  if (isGenerating(state.activeId)) return;
   const conv = state.conversations.find(c => c.id === state.activeId);
   if (!conv) return;
   const msg = conv.messages[idx];
@@ -1463,7 +1469,7 @@ async function saveEdit(idx) {
 }
 
 async function regenMessage(idx) {
-  if (state.thinking) return;
+  if (isGenerating(state.activeId)) return;
   const conv = state.conversations.find(c => c.id === state.activeId);
   if (!conv) return;
   conv.messages = conv.messages.slice(0, idx + 1);
@@ -1602,6 +1608,7 @@ function newChat(focus = true) {
   state.conversations.unshift({id, title: '', messages: []});
   state.activeId = id;
   document.getElementById('chat-body').innerHTML = buildWelcome();
+  syncGeneratingUI();
   updateSidebarList();
   if (focus) setTimeout(() => document.getElementById('msg-input').focus(), 50);
 }
@@ -1643,6 +1650,7 @@ function loadChat(id) {
     highlightEl(body);
     scrollToBottom();
   }
+  syncGeneratingUI();
   updateSidebarList();
 }
 
