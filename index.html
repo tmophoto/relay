@@ -650,6 +650,25 @@ html.light pre[class*="language-"] { background: #f6f8fa !important; }
 }
 
 .upload-zone:hover { border-color: rgba(52,211,153,0.3); background: var(--accent-dim2); }
+.upload-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+
+.attachment-chips {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 8px 14px 0;
+}
+.attachment-chip {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--bg4); border: 1px solid var(--border2);
+  border-radius: 6px; padding: 4px 8px;
+  font-size: 11px; color: var(--text2); max-width: 200px;
+}
+.attachment-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-chip button {
+  background: none; border: none; cursor: pointer;
+  color: var(--text3); font-size: 14px; line-height: 1;
+  padding: 0; flex-shrink: 0;
+}
+.attachment-chip button:hover { color: #f87171; }
 
 .upload-icon {
   width: 32px; height: 32px;
@@ -926,6 +945,7 @@ html.light .custom-slider {
     </div>
 
     <div class="composer">
+      <div id="attachment-chips" class="attachment-chips"></div>
       <div class="composer-wrap">
         <textarea id="msg-input" rows="2" placeholder="Message Relay…" onkeydown="handleKey(event)"></textarea>
         <div class="composer-actions">
@@ -1160,7 +1180,12 @@ async function sendMessage(text) {
   if (state.thinking) return;
   const input = document.getElementById('msg-input');
   const msg = (text || input.value).trim();
-  if (!msg) return;
+  if (!msg && !attachedFiles.length) return;
+
+  const fileContext = buildAttachmentContext();
+  const fullMsg = fileContext + (msg || '');
+  attachedFiles = [];
+  renderAttachmentChips();
 
   input.value = '';
   input.style.height = 'auto';
@@ -1173,14 +1198,14 @@ async function sendMessage(text) {
   const ws = document.getElementById('welcome-screen');
   if (ws) ws.remove();
 
-  conv.messages.push({role: 'user', content: msg});
+  conv.messages.push({role: 'user', content: fullMsg});
 
   const body = document.getElementById('chat-body');
-  body.insertAdjacentHTML('beforeend', renderMessage('user', msg));
+  body.insertAdjacentHTML('beforeend', renderMessage('user', fullMsg));
   scrollToBottom();
 
   if (!conv.title) {
-    conv.title = msg.slice(0, 38) + (msg.length > 38 ? '\u2026' : '');
+    conv.title = (msg || attachedFiles[0]?.name || 'File').slice(0, 38);
     updateSidebarList();
   }
 
@@ -1301,6 +1326,69 @@ async function sendMessage(text) {
 }
 
 function sendChip(text) { sendMessage(text); }
+
+// ── Attachments ────────────────────────────────────────────
+let attachedFiles = [];
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    attachedFiles.push({name: file.name, content: e.target.result});
+    renderAttachmentChips();
+  };
+  reader.onerror = () => {};
+  reader.readAsText(file);
+}
+
+function handleFile(input) {
+  Array.from(input.files).forEach(readFile);
+  input.value = '';
+}
+
+function removeAttachment(i) {
+  attachedFiles.splice(i, 1);
+  renderAttachmentChips();
+}
+
+function renderAttachmentChips() {
+  const el = document.getElementById('attachment-chips');
+  if (!el) return;
+  el.innerHTML = attachedFiles.map((f, i) => `
+    <div class="attachment-chip">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+      <span title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+      <button onclick="removeAttachment(${i})" title="Remove">×</button>
+    </div>`).join('');
+}
+
+function buildAttachmentContext() {
+  if (!attachedFiles.length) return '';
+  return attachedFiles.map(f => {
+    const ext = f.name.split('.').pop() || '';
+    return `\`\`\`${ext}\n// ${f.name}\n${f.content}\n\`\`\``;
+  }).join('\n\n') + '\n\n';
+}
+
+// Wire up upload zone drag-and-drop after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  // Prevent browser from navigating when a file is dropped anywhere
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => e.preventDefault());
+
+  const zone = document.querySelector('.upload-zone');
+  if (zone) {
+    zone.addEventListener('dragover', e => {
+      e.preventDefault(); e.stopPropagation();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      zone.classList.remove('drag-over');
+      Array.from(e.dataTransfer.files).forEach(readFile);
+    });
+  }
+});
 
 function copyMsg(btn) {
   const bubble = btn.closest('.msg-content').querySelector('.msg-bubble');
