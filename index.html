@@ -971,7 +971,7 @@ html.light .custom-slider {
           </button>
         </div>
       </div>
-      <input type="file" id="file-input" style="display:none" onchange="handleFile(this)">
+      <input type="file" id="file-input" style="display:none" multiple accept="image/*,.txt,.md,.csv,.json,.xml,.js,.ts,.jsx,.tsx,.py,.rb,.rs,.go,.java,.c,.cpp,.h,.cs,.php,.sh,.yaml,.yml,.toml,.sql,.html,.css,.scss,.swift,.kt,.log,.conf" onchange="handleFile(this)">
     </div>
   </div>
 
@@ -1130,9 +1130,20 @@ function highlightEl(el) {
 
 const COPY_ICON = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 
+function renderUserContent(raw) {
+  if (typeof raw === 'string') return escapeHtml(raw);
+  // Array = vision message
+  return raw.map(part => {
+    if (part.type === 'image_url') {
+      return `<img src="${part.image_url.url}" style="max-width:100%;max-height:300px;border-radius:8px;display:block;margin:4px 0;">`;
+    }
+    return escapeHtml(part.text || '');
+  }).join('');
+}
+
 function renderMessage(role, text) {
   const isUser = role === 'user';
-  const content = isUser ? escapeHtml(text) : renderMarkdown(text);
+  const content = isUser ? renderUserContent(text) : renderMarkdown(typeof text === 'string' ? text : (text.find?.(p => p.type === 'text')?.text || ''));
   const copyBtn = isUser ? '' : `<button class="copy-btn" onclick="copyMsg(this)" title="Copy">${COPY_ICON} Copy</button>`;
   return `<div class="msg ${role}">
     <div class="msg-avatar">${isUser ? 'T' : '~'}</div>
@@ -1192,8 +1203,9 @@ async function sendMessage(text) {
   const msg = (text || input.value).trim();
   if (!msg && !attachedFiles.length) return;
 
-  const fileContext = buildAttachmentContext();
-  const fullMsg = fileContext + (msg || '');
+  const files = attachedFiles.slice();
+  const userContent = buildUserContent(msg || '', files);
+  const titleText = msg || (files[0]?.name) || 'File';
   attachedFiles = [];
   renderAttachmentChips();
 
@@ -1208,14 +1220,14 @@ async function sendMessage(text) {
   const ws = document.getElementById('welcome-screen');
   if (ws) ws.remove();
 
-  conv.messages.push({role: 'user', content: fullMsg});
+  conv.messages.push({role: 'user', content: userContent});
 
   const body = document.getElementById('chat-body');
-  body.insertAdjacentHTML('beforeend', renderMessage('user', fullMsg));
+  body.insertAdjacentHTML('beforeend', renderMessage('user', userContent));
   scrollToBottom();
 
   if (!conv.title) {
-    conv.title = (msg || attachedFiles[0]?.name || 'File').slice(0, 38);
+    conv.title = titleText.slice(0, 38) + (titleText.length > 38 ? '\u2026' : '');
     updateSidebarList();
   }
 
@@ -1346,24 +1358,30 @@ function showToast(msg, duration = 3000) {
 }
 
 // ── Attachments ────────────────────────────────────────────
-let attachedFiles = [];
+let attachedFiles = []; // {name, isImage, dataUrl, mimeType, content}
 
+const IMAGE_TYPES = /^image\//;
 const TEXT_TYPES = /^text\/|\/json$|\/xml$|\/javascript$|\/typescript$|\/x-python$|\/x-sh$/;
 const TEXT_EXTS = /\.(txt|md|csv|json|xml|js|ts|jsx|tsx|py|rb|rs|go|java|c|cpp|h|hpp|cs|php|sh|bash|zsh|yaml|yml|toml|ini|env|sql|html|css|scss|less|swift|kt|r|m|ipynb|log|conf|cfg)$/i;
 
 function readFile(file) {
-  const ok = TEXT_TYPES.test(file.type) || TEXT_EXTS.test(file.name) || file.type === '';
-  if (!ok) {
-    showToast(`"${file.name}" is not a text file and can't be attached.`);
-    return;
+  if (IMAGE_TYPES.test(file.type)) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      attachedFiles.push({name: file.name, isImage: true, dataUrl: e.target.result, mimeType: file.type});
+      renderAttachmentChips();
+    };
+    reader.readAsDataURL(file);
+  } else if (TEXT_TYPES.test(file.type) || TEXT_EXTS.test(file.name) || file.type === '') {
+    const reader = new FileReader();
+    reader.onload = e => {
+      attachedFiles.push({name: file.name, isImage: false, content: e.target.result});
+      renderAttachmentChips();
+    };
+    reader.readAsText(file);
+  } else {
+    showToast(`"${file.name}" — unsupported file type.`);
   }
-  const reader = new FileReader();
-  reader.onload = e => {
-    attachedFiles.push({name: file.name, content: e.target.result});
-    renderAttachmentChips();
-  };
-  reader.onerror = () => {};
-  reader.readAsText(file);
 }
 
 function handleFile(input) {
@@ -1379,20 +1397,35 @@ function removeAttachment(i) {
 function renderAttachmentChips() {
   const el = document.getElementById('attachment-chips');
   if (!el) return;
-  el.innerHTML = attachedFiles.map((f, i) => `
-    <div class="attachment-chip">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-      <span title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
-      <button onclick="removeAttachment(${i})" title="Remove">×</button>
-    </div>`).join('');
+  el.innerHTML = attachedFiles.map((f, i) => f.isImage
+    ? `<div class="attachment-chip">
+        <img src="${f.dataUrl}" style="width:20px;height:20px;object-fit:cover;border-radius:3px;flex-shrink:0;">
+        <span title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+        <button onclick="removeAttachment(${i})" title="Remove">×</button>
+       </div>`
+    : `<div class="attachment-chip">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+        <span title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+        <button onclick="removeAttachment(${i})" title="Remove">×</button>
+       </div>`
+  ).join('');
 }
 
-function buildAttachmentContext() {
-  if (!attachedFiles.length) return '';
-  return attachedFiles.map(f => {
+// Build the user content — string for text-only, array for vision
+function buildUserContent(msg, files) {
+  const images = files.filter(f => f.isImage);
+  const texts = files.filter(f => !f.isImage);
+  const textBlock = texts.map(f => {
     const ext = f.name.split('.').pop() || '';
     return `\`\`\`${ext}\n// ${f.name}\n${f.content}\n\`\`\``;
-  }).join('\n\n') + '\n\n';
+  }).join('\n\n');
+  const combined = textBlock ? textBlock + '\n\n' + msg : msg;
+  if (!images.length) return combined;
+  // Vision format
+  const parts = [];
+  if (combined) parts.push({type: 'text', text: combined});
+  images.forEach(f => parts.push({type: 'image_url', image_url: {url: f.dataUrl}}));
+  return parts;
 }
 
 // Wire up upload zone drag-and-drop after DOM ready
