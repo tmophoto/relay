@@ -1041,6 +1041,7 @@ const state = {
 function updateSessionCounter() {
   const el = document.getElementById('session-tok');
   if (el) el.textContent = state.sessionTokens.toLocaleString() + ' tok';
+  localStorage.setItem('relay-total-tokens', state.sessionTokens);
 }
 
 if (typeof marked !== 'undefined') {
@@ -1502,6 +1503,11 @@ async function testConnection() {
     status.style.color = '#f87171';
   }
 }
+
+(function restoreTotalTokens() {
+  const saved = parseInt(localStorage.getItem('relay-total-tokens') || '0', 10);
+  if (saved > 0) { state.sessionTokens = saved; updateSessionCounter(); }
+})();
 
 (function restoreHost() {
   const host = localStorage.getItem('relay-host');
