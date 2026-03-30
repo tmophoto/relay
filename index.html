@@ -393,11 +393,25 @@ html, body {
 .msg.user .msg-meta { justify-content: flex-end; }
 .msg-stats { font-size: 11.5px; color: var(--accent); margin-top: 4px; clear: both; font-variant-numeric: tabular-nums; font-weight: 500; text-shadow: 0 0 10px rgba(52,211,153,0.5); }
 
-/* Context bar */
-.ctx-bar-wrap { margin-top: 6px; clear: both; }
-.ctx-bar-label { font-size: 10px; color: var(--text3); margin-bottom: 3px; font-variant-numeric: tabular-nums; }
-.ctx-bar-track { height: 3px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
-.ctx-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+/* Context ring */
+.ctx-ring-wrap {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; cursor: default; flex-shrink: 0;
+}
+.ctx-ring-pct {
+  position: absolute; font-size: 7.5px; font-weight: 700; color: var(--text2);
+  font-variant-numeric: tabular-nums; pointer-events: none; line-height: 1;
+}
+.ctx-tooltip {
+  position: absolute; bottom: calc(100% + 10px); right: -8px;
+  background: var(--bg4); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 10px 13px;
+  font-size: 12px; color: var(--text2); white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity 0.15s;
+  line-height: 1.8; z-index: 200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.ctx-ring-wrap:hover .ctx-tooltip { opacity: 1; }
 
 /* Edit button on user messages */
 .edit-btn {
@@ -985,7 +999,16 @@ html.light .custom-slider {
           <div class="composer-icon-btn" title="Attach file" onclick="document.getElementById('file-input').click()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </div>
-<span class="composer-hints"><span>⇧↩ newline</span><span>↩ send</span></span>
+          <div style="flex:1"></div>
+          <div class="ctx-ring-wrap" id="ctx-ring-wrap" style="display:none" aria-label="Context usage">
+            <svg width="28" height="28" viewBox="0 0 28 28" style="transform:rotate(-90deg)">
+              <circle cx="14" cy="14" r="11" fill="none" stroke="var(--bg5)" stroke-width="2.5"/>
+              <circle cx="14" cy="14" r="11" fill="none" stroke="var(--accent)" stroke-width="2.5"
+                stroke-linecap="round" stroke-dasharray="69.115" stroke-dashoffset="69.115" id="ctx-ring-arc"/>
+            </svg>
+            <span class="ctx-ring-pct" id="ctx-ring-pct">0%</span>
+            <div class="ctx-tooltip" id="ctx-tooltip"></div>
+          </div>
           <button class="stop-btn" onclick="stopGeneration()" title="Stop generation">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
           </button>
@@ -1095,6 +1118,29 @@ function updateSessionCounter() {
   const el = document.getElementById('session-tok');
   if (el) el.textContent = state.sessionTokens.toLocaleString() + ' tok';
   localStorage.setItem('relay-total-tokens', state.sessionTokens);
+}
+
+const CTX_MAX = 32768;
+const CTX_CIRC = 2 * Math.PI * 11; // r=11 → ≈69.115
+
+function updateCtxRing(usedTok) {
+  const wrap = document.getElementById('ctx-ring-wrap');
+  const arc = document.getElementById('ctx-ring-arc');
+  const pctEl = document.getElementById('ctx-ring-pct');
+  const tooltip = document.getElementById('ctx-tooltip');
+  if (!wrap) return;
+  const pct = Math.min(100, (usedTok / CTX_MAX) * 100);
+  const offset = CTX_CIRC * (1 - pct / 100);
+  const color = pct > 90 ? '#f87171' : pct > 70 ? '#f59e0b' : 'var(--accent)';
+  wrap.style.display = 'flex';
+  arc.setAttribute('stroke-dashoffset', offset.toFixed(3));
+  arc.style.stroke = color;
+  pctEl.textContent = Math.round(pct) + '%';
+  pctEl.style.color = color;
+  tooltip.innerHTML =
+    `Current conversation tokens: <strong>${usedTok.toLocaleString()}</strong><br>` +
+    `Total context window: <strong>${CTX_MAX.toLocaleString()}</strong><br>` +
+    `${pct.toFixed(1)}% used (${(100 - pct).toFixed(1)}% left)`;
 }
 
 if (typeof marked !== 'undefined') {
@@ -1266,7 +1312,6 @@ async function streamResponse(conv) {
         <div class="msg-bubble" id="stream-bubble"></div>
         <div class="msg-meta"><span class="msg-time">${getTime()}</span><button class="copy-btn" id="stream-copy" onclick="copyMsg(this)" title="Copy">${COPY_ICON} Copy</button></div>
         <div class="msg-stats" id="stream-stats"></div>
-        <div class="ctx-bar-wrap" id="stream-ctx" style="display:none"></div>
       </div>`;
     body.appendChild(msgEl);
 
@@ -1311,16 +1356,7 @@ async function streamResponse(conv) {
     const statsEl = document.getElementById('stream-stats');
     if (statsEl) { statsEl.removeAttribute('id'); statsEl.textContent = `${totalTok} · ${finalTps} tok/s · ${elapsedSec.toFixed(1)}s`; }
 
-    // Context window bar
-    const ctxEl = document.getElementById('stream-ctx');
-    if (ctxEl) {
-      ctxEl.removeAttribute('id');
-      const pct = Math.min(100, (usedTok / 32768) * 100);
-      const barColor = pct > 90 ? '#f87171' : pct > 70 ? '#f59e0b' : 'var(--accent)';
-      ctxEl.style.display = '';
-      ctxEl.innerHTML = `<div class="ctx-bar-label">${usedTok.toLocaleString()} / 32 768 ctx (${pct.toFixed(0)}%)</div><div class="ctx-bar-track"><div class="ctx-bar-fill" style="width:${pct.toFixed(2)}%;background:${barColor}"></div></div>`;
-    }
-
+    updateCtxRing(usedTok);
     state.sessionTokens += usedTok;
     updateSessionCounter();
 
