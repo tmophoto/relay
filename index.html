@@ -432,7 +432,7 @@ html, body {
   opacity: 0; transition: opacity 0.15s, background 0.15s;
   display: flex; align-items: center; gap: 3px;
 }
-.msg.assistant:hover .copy-btn { opacity: 1; }
+.msg.assistant:hover .copy-btn, .msg.user:hover .copy-btn { opacity: 1; }
 .copy-btn:hover { background: var(--bg4); color: var(--text2); }
 .copy-btn.copied { color: var(--accent); opacity: 1; }
 
@@ -1170,7 +1170,7 @@ function renderMessage(role, text, msgIdx) {
   const isUser = role === 'user';
   const content = isUser ? renderUserContent(text) : renderMarkdown(typeof text === 'string' ? text : (text.find?.(p => p.type === 'text')?.text || ''));
   const editBtn = isUser && msgIdx != null ? `<button class="edit-btn" onclick="editMessage(${msgIdx})" title="Edit">${EDIT_ICON} Edit</button>` : '';
-  const copyBtn = isUser ? '' : `<button class="copy-btn" onclick="copyMsg(this)" title="Copy">${COPY_ICON} Copy</button>`;
+  const copyBtn = `<button class="copy-btn" onclick="copyMsg(this)" title="Copy">${COPY_ICON} Copy</button>`;
   return `<div class="msg ${role}" data-idx="${msgIdx ?? ''}">
     <div class="msg-avatar">${isUser ? 'T' : '~'}</div>
     <div class="msg-content">
