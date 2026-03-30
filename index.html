@@ -393,6 +393,28 @@ html, body {
 .msg.user .msg-meta { justify-content: flex-end; }
 .msg-stats { font-size: 11.5px; color: var(--accent); margin-top: 4px; clear: both; font-variant-numeric: tabular-nums; font-weight: 500; text-shadow: 0 0 10px rgba(52,211,153,0.5); }
 
+/* Context bar */
+.ctx-bar-wrap { margin-top: 6px; clear: both; }
+.ctx-bar-label { font-size: 10px; color: var(--text3); margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+.ctx-bar-track { height: 3px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
+.ctx-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+
+/* Edit button on user messages */
+.edit-btn {
+  background: none; border: none; cursor: pointer; padding: 2px 5px;
+  border-radius: 4px; color: var(--text3); font-size: 10px; font-family: var(--font);
+  opacity: 0; transition: opacity 0.15s, background 0.15s;
+  display: flex; align-items: center; gap: 3px;
+}
+.msg.user:hover .edit-btn { opacity: 1; }
+.edit-btn:hover { background: var(--bg4); color: var(--text2); }
+/* Edit textarea inside bubble */
+.edit-textarea {
+  width: 100%; background: transparent; border: none; outline: none;
+  resize: none; font-family: var(--font); font-size: 14px;
+  color: var(--text1); line-height: 1.55; min-height: 40px;
+}
+
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
   background: #3f3f46; color: #f5f5f7; font-size: 12.5px;
@@ -1142,15 +1164,18 @@ function renderUserContent(raw) {
   }).join('');
 }
 
-function renderMessage(role, text) {
+const EDIT_ICON = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+
+function renderMessage(role, text, msgIdx) {
   const isUser = role === 'user';
   const content = isUser ? renderUserContent(text) : renderMarkdown(typeof text === 'string' ? text : (text.find?.(p => p.type === 'text')?.text || ''));
+  const editBtn = isUser && msgIdx != null ? `<button class="edit-btn" onclick="editMessage(${msgIdx})" title="Edit">${EDIT_ICON} Edit</button>` : '';
   const copyBtn = isUser ? '' : `<button class="copy-btn" onclick="copyMsg(this)" title="Copy">${COPY_ICON} Copy</button>`;
-  return `<div class="msg ${role}">
+  return `<div class="msg ${role}" data-idx="${msgIdx ?? ''}">
     <div class="msg-avatar">${isUser ? 'T' : '~'}</div>
     <div class="msg-content">
       <div class="msg-bubble">${content}</div>
-      <div class="msg-meta"><span class="msg-time">${getTime()}</span>${copyBtn}</div>
+      <div class="msg-meta"><span class="msg-time">${getTime()}</span>${editBtn}${copyBtn}</div>
     </div>
   </div>`;
 }
@@ -1198,40 +1223,8 @@ function removeThinkingBubble() {
   if (el) el.remove();
 }
 
-async function sendMessage(text) {
-  if (state.thinking) return;
-  const input = document.getElementById('msg-input');
-  const msg = (text || input.value).trim();
-  if (!msg && !attachedFiles.length) return;
-
-  const files = attachedFiles.slice();
-  const userContent = buildUserContent(msg || '', files);
-  const titleText = msg || (files[0]?.name) || 'File';
-  attachedFiles = [];
-  renderAttachmentChips();
-
-  input.value = '';
-  input.style.height = 'auto';
-
-  if (!state.activeId) newChat(false);
-
-  const conv = state.conversations.find(c => c.id === state.activeId);
-  if (!conv) return;
-
-  const ws = document.getElementById('welcome-screen');
-  if (ws) ws.remove();
-
-  conv.messages.push({role: 'user', content: userContent});
-
+async function streamResponse(conv) {
   const body = document.getElementById('chat-body');
-  body.insertAdjacentHTML('beforeend', renderMessage('user', userContent));
-  scrollToBottom();
-
-  if (!conv.title) {
-    conv.title = titleText.slice(0, 38) + (titleText.length > 38 ? '\u2026' : '');
-    updateSidebarList();
-  }
-
   state.thinking = true;
   setGenerating(true);
   setStatus('Thinking\u2026', true);
@@ -1273,6 +1266,7 @@ async function sendMessage(text) {
         <div class="msg-bubble" id="stream-bubble"></div>
         <div class="msg-meta"><span class="msg-time">${getTime()}</span><button class="copy-btn" id="stream-copy" onclick="copyMsg(this)" title="Copy">${COPY_ICON} Copy</button></div>
         <div class="msg-stats" id="stream-stats"></div>
+        <div class="ctx-bar-wrap" id="stream-ctx" style="display:none"></div>
       </div>`;
     body.appendChild(msgEl);
 
@@ -1304,28 +1298,30 @@ async function sendMessage(text) {
     }
 
     const sb = document.getElementById('stream-bubble');
-    if (sb) {
-      sb.innerHTML = renderMarkdown(fullText);
-      highlightEl(sb);
-      sb.removeAttribute('id');
-    }
+    if (sb) { sb.innerHTML = renderMarkdown(fullText); highlightEl(sb); sb.removeAttribute('id'); }
     const sc = document.getElementById('stream-copy');
     if (sc) sc.removeAttribute('id');
 
     const elapsedSec = streamStart ? ((performance.now() - streamStart) / 1000) : 0;
     const finalTps = elapsedSec > 0 ? (tokensGenerated / elapsedSec).toFixed(1) : '—';
+    const usedTok = usageData ? (usageData.prompt_tokens + usageData.completion_tokens) : tokensGenerated;
     const totalTok = usageData
-      ? `${usageData.prompt_tokens + usageData.completion_tokens} tok (${usageData.prompt_tokens} in · ${usageData.completion_tokens} out)`
-      : `${tokensGenerated} tok`;
+      ? `${usedTok.toLocaleString()} tok (${usageData.prompt_tokens} in · ${usageData.completion_tokens} out)`
+      : `${usedTok.toLocaleString()} tok`;
     const statsEl = document.getElementById('stream-stats');
-    if (statsEl) {
-      statsEl.removeAttribute('id');
-      statsEl.textContent = `${totalTok} · ${finalTps} tok/s · ${elapsedSec.toFixed(1)}s`;
+    if (statsEl) { statsEl.removeAttribute('id'); statsEl.textContent = `${totalTok} · ${finalTps} tok/s · ${elapsedSec.toFixed(1)}s`; }
+
+    // Context window bar
+    const ctxEl = document.getElementById('stream-ctx');
+    if (ctxEl) {
+      ctxEl.removeAttribute('id');
+      const pct = Math.min(100, (usedTok / 32768) * 100);
+      const barColor = pct > 90 ? '#f87171' : pct > 70 ? '#f59e0b' : 'var(--accent)';
+      ctxEl.style.display = '';
+      ctxEl.innerHTML = `<div class="ctx-bar-label">${usedTok.toLocaleString()} / 32 768 ctx (${pct.toFixed(0)}%)</div><div class="ctx-bar-track"><div class="ctx-bar-fill" style="width:${pct.toFixed(2)}%;background:${barColor}"></div></div>`;
     }
 
-    state.sessionTokens += usageData
-      ? (usageData.prompt_tokens + usageData.completion_tokens)
-      : tokensGenerated;
+    state.sessionTokens += usedTok;
     updateSessionCounter();
 
     conv.messages.push({role: 'assistant', content: fullText});
@@ -1348,7 +1344,97 @@ async function sendMessage(text) {
   setStatus('Ready', false);
 }
 
+async function sendMessage(text) {
+  if (state.thinking) return;
+  const input = document.getElementById('msg-input');
+  const msg = (text || input.value).trim();
+  if (!msg && !attachedFiles.length) return;
+
+  const files = attachedFiles.slice();
+  const userContent = buildUserContent(msg || '', files);
+  const titleText = msg || (files[0]?.name) || 'File';
+  attachedFiles = [];
+  renderAttachmentChips();
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  if (!state.activeId) newChat(false);
+
+  const conv = state.conversations.find(c => c.id === state.activeId);
+  if (!conv) return;
+
+  const ws = document.getElementById('welcome-screen');
+  if (ws) ws.remove();
+
+  conv.messages.push({role: 'user', content: userContent});
+  const userMsgIdx = conv.messages.length - 1;
+
+  const body = document.getElementById('chat-body');
+  body.insertAdjacentHTML('beforeend', renderMessage('user', userContent, userMsgIdx));
+  scrollToBottom();
+
+  if (!conv.title) {
+    conv.title = titleText.slice(0, 38) + (titleText.length > 38 ? '\u2026' : '');
+    updateSidebarList();
+  }
+
+  await streamResponse(conv);
+}
+
 function sendChip(text) { sendMessage(text); }
+
+// ── Edit message ────────────────────────────────────────────
+function editMessage(idx) {
+  if (state.thinking) return;
+  const conv = state.conversations.find(c => c.id === state.activeId);
+  if (!conv) return;
+  const msg = conv.messages[idx];
+  if (!msg || msg.role !== 'user') return;
+  const msgEl = document.querySelector(`.msg[data-idx="${idx}"]`);
+  if (!msgEl) return;
+  const bubble = msgEl.querySelector('.msg-bubble');
+  const origText = typeof msg.content === 'string' ? msg.content : (msg.content.find?.(p => p.type === 'text')?.text || '');
+  bubble.innerHTML = `<textarea class="edit-textarea" id="edit-ta-${idx}"></textarea>
+    <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+      <button onclick="cancelEdit(${idx})" style="background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;font-family:var(--font);font-size:12px;color:var(--text2);cursor:pointer;">Cancel</button>
+      <button onclick="saveEdit(${idx})" style="background:var(--accent);border:none;border-radius:6px;padding:5px 12px;font-family:var(--font);font-size:12px;color:#000;font-weight:600;cursor:pointer;">Resend</button>
+    </div>`;
+  const ta = document.getElementById(`edit-ta-${idx}`);
+  ta.value = origText;
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+  ta.focus();
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(idx); }
+    if (e.key === 'Escape') cancelEdit(idx);
+  });
+}
+
+function cancelEdit(idx) {
+  const conv = state.conversations.find(c => c.id === state.activeId);
+  if (!conv) return;
+  const msg = conv.messages[idx];
+  if (!msg) return;
+  const msgEl = document.querySelector(`.msg[data-idx="${idx}"]`);
+  if (msgEl) msgEl.outerHTML = renderMessage(msg.role, msg.content, idx);
+}
+
+async function saveEdit(idx) {
+  const ta = document.getElementById(`edit-ta-${idx}`);
+  if (!ta) return;
+  const newText = ta.value.trim();
+  if (!newText) return;
+  const conv = state.conversations.find(c => c.id === state.activeId);
+  if (!conv) return;
+  conv.messages[idx] = {role: 'user', content: newText};
+  conv.messages = conv.messages.slice(0, idx + 1);
+  const body = document.getElementById('chat-body');
+  body.innerHTML = conv.messages.map((m, i) => renderMessage(m.role, m.content, i)).join('');
+  highlightEl(body);
+  scrollToBottom();
+  await streamResponse(conv);
+}
 
 function showToast(msg, duration = 3000) {
   const t = document.createElement('div');
@@ -1515,7 +1601,7 @@ function loadChat(id) {
   if (conv.messages.length === 0) {
     body.innerHTML = buildWelcome();
   } else {
-    body.innerHTML = conv.messages.map(m => renderMessage(m.role, m.content)).join('');
+    body.innerHTML = conv.messages.map((m, i) => renderMessage(m.role, m.content, i)).join('');
     highlightEl(body);
     scrollToBottom();
   }
@@ -1535,13 +1621,48 @@ function updateSidebarList() {
   list.innerHTML = named.map(c => `
     <div class="chat-item ${c.id === state.activeId ? 'active' : ''}" onclick="loadChat('${c.id}')">
       <div style="flex:1;min-width:0;">
-        <div class="chat-item-title">${escapeHtml(c.title)}</div>
+        <div class="chat-item-title" ondblclick="startRename('${c.id}',event)" title="Double-click to rename">${escapeHtml(c.title)}</div>
         <div class="chat-item-meta">${new Date(parseInt(c.id)).toLocaleDateString([],{month:'short',day:'numeric'})}</div>
       </div>
       <button class="chat-item-del" onclick="deleteChat('${c.id}',event)" title="Delete">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>
     </div>`).join('');
+}
+
+function startRename(id, e) {
+  e.stopPropagation();
+  const conv = state.conversations.find(c => c.id === id);
+  if (!conv) return;
+  const titleEl = e.currentTarget;
+  const orig = conv.title;
+  titleEl.contentEditable = 'true';
+  titleEl.style.outline = '1px solid var(--border2)';
+  titleEl.style.borderRadius = '3px';
+  titleEl.focus();
+  const sel = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(titleEl);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  function commit() {
+    titleEl.contentEditable = 'false';
+    titleEl.style.outline = '';
+    titleEl.style.borderRadius = '';
+    const newTitle = titleEl.textContent.trim().slice(0, 60);
+    conv.title = newTitle || orig;
+    titleEl.textContent = conv.title;
+    saveToLocalStorage();
+    titleEl.removeEventListener('blur', commit);
+    titleEl.removeEventListener('keydown', onKey);
+  }
+  function onKey(ke) {
+    if (ke.key === 'Enter') { ke.preventDefault(); commit(); }
+    if (ke.key === 'Escape') { titleEl.textContent = orig; titleEl.contentEditable = 'false'; titleEl.style.outline = ''; titleEl.removeEventListener('blur', commit); titleEl.removeEventListener('keydown', onKey); }
+  }
+  titleEl.addEventListener('blur', commit);
+  titleEl.addEventListener('keydown', onKey);
 }
 
 document.getElementById('temp-slider').addEventListener('input', function() {
