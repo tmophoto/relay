@@ -139,6 +139,9 @@ html, body {
   transition: background 0.1s;
   border: 1px solid transparent;
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .chat-item:hover { background: var(--bg4); }
@@ -155,6 +158,13 @@ html, body {
 
 .chat-item.active .chat-item-title { color: var(--text1); }
 .chat-item-meta { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.chat-item-del {
+  background: none; border: none; cursor: pointer; padding: 4px; border-radius: 5px;
+  color: var(--text3); opacity: 0; transition: opacity 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0; display: flex; align-items: center;
+}
+.chat-item:hover .chat-item-del { opacity: 1; }
+.chat-item-del:hover { color: #f87171; background: rgba(248,113,113,0.1); }
 
 .empty-chat {
   display: flex;
@@ -896,9 +906,6 @@ html.light .custom-slider {
         <div class="topbar-btn" title="Toggle light/dark" onclick="toggleTheme()" id="theme-btn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </div>
-        <div class="topbar-btn" title="Clear chat" onclick="clearChat()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        </div>
       </div>
     </div>
 
@@ -1326,6 +1333,18 @@ function newChat(focus = true) {
   if (focus) setTimeout(() => document.getElementById('msg-input').focus(), 50);
 }
 
+async function deleteChat(id, e) {
+  e.stopPropagation();
+  state.conversations = state.conversations.filter(c => c.id !== id);
+  await deleteConvFile(id);
+  saveToLocalStorage();
+  if (state.activeId === id) {
+    state.activeId = null;
+    document.getElementById('chat-body').innerHTML = buildWelcome();
+  }
+  updateSidebarList();
+}
+
 async function clearChat() {
   const conv = state.conversations.find(c => c.id === state.activeId);
   if (conv) {
@@ -1366,8 +1385,13 @@ function updateSidebarList() {
   }
   list.innerHTML = named.map(c => `
     <div class="chat-item ${c.id === state.activeId ? 'active' : ''}" onclick="loadChat('${c.id}')">
-      <div class="chat-item-title">${escapeHtml(c.title)}</div>
-      <div class="chat-item-meta">${new Date(parseInt(c.id)).toLocaleDateString([],{month:'short',day:'numeric'})}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="chat-item-title">${escapeHtml(c.title)}</div>
+        <div class="chat-item-meta">${new Date(parseInt(c.id)).toLocaleDateString([],{month:'short',day:'numeric'})}</div>
+      </div>
+      <button class="chat-item-del" onclick="deleteChat('${c.id}',event)" title="Delete">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
     </div>`).join('');
 }
 
