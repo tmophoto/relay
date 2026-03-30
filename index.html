@@ -1836,7 +1836,7 @@ async function testConnection() {
   const connType = localStorage.getItem('relay-conn-type') || 'direct';
   setConnType(connType);
   fetchModelName();
-  setInterval(fetchModelName, 30000);
+  setInterval(fetchModelName, 3600000);
 })();
 
 function toggleSidebar() {
