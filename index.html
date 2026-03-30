@@ -393,6 +393,16 @@ html, body {
 .msg.user .msg-meta { justify-content: flex-end; }
 .msg-stats { font-size: 11.5px; color: var(--accent); margin-top: 4px; clear: both; font-variant-numeric: tabular-nums; font-weight: 500; text-shadow: 0 0 10px rgba(52,211,153,0.5); }
 
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #3f3f46; color: #f5f5f7; font-size: 12.5px;
+  padding: 9px 16px; border-radius: 8px; z-index: 999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: toast-in 0.2s ease;
+  pointer-events: none;
+}
+@keyframes toast-in { from { opacity:0; transform: translateX(-50%) translateY(6px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+
 /* Copy button */
 .copy-btn {
   background: none; border: none; cursor: pointer; padding: 2px 5px;
@@ -1327,10 +1337,26 @@ async function sendMessage(text) {
 
 function sendChip(text) { sendMessage(text); }
 
+function showToast(msg, duration = 3000) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), duration);
+}
+
 // ── Attachments ────────────────────────────────────────────
 let attachedFiles = [];
 
+const TEXT_TYPES = /^text\/|\/json$|\/xml$|\/javascript$|\/typescript$|\/x-python$|\/x-sh$/;
+const TEXT_EXTS = /\.(txt|md|csv|json|xml|js|ts|jsx|tsx|py|rb|rs|go|java|c|cpp|h|hpp|cs|php|sh|bash|zsh|yaml|yml|toml|ini|env|sql|html|css|scss|less|swift|kt|r|m|ipynb|log|conf|cfg)$/i;
+
 function readFile(file) {
+  const ok = TEXT_TYPES.test(file.type) || TEXT_EXTS.test(file.name) || file.type === '';
+  if (!ok) {
+    showToast(`"${file.name}" is not a text file and can't be attached.`);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e => {
     attachedFiles.push({name: file.name, content: e.target.result});
