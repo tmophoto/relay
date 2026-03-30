@@ -1,6 +1,8 @@
 # Relay
 
-A single-file local chat UI for [vLLM](https://github.com/vllm-project/vllm). No build step, no server, no npm — open `index.html` in Chrome and start chatting.
+A single-file local chat UI for any OpenAI-compatible local model server. No build step, no server, no npm — open `index.html` in Chrome and start chatting.
+
+Works with [vLLM](https://github.com/vllm-project/vllm), [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.com), or anything else that exposes an OpenAI-compatible `/v1/chat/completions` endpoint.
 
 > **Chrome recommended.** The File System Access API (used for saving chats to disk) requires Chrome. The rest of the UI works in any modern browser.
 
@@ -33,7 +35,10 @@ A single-file local chat UI for [vLLM](https://github.com/vllm-project/vllm). No
 ## Requirements
 
 - **Chrome** (recommended; required for folder-based chat saving)
-- [vLLM](https://github.com/vllm-project/vllm) running and serving a model on `localhost:8000`
+- A local model server with an OpenAI-compatible API:
+  - [vLLM](https://github.com/vllm-project/vllm) — default port `8000`
+  - [LM Studio](https://lmstudio.ai) — default port `1234` (enable **Allow CORS** in server settings)
+  - [Ollama](https://ollama.com) — default port `11434`
 - Internet connection for CDN assets (marked.js, Prism.js) on first load — or serve the file locally
 
 ---
